@@ -7,7 +7,7 @@ Run on **2026-10-28**, PostgreSQL 16.15, Node 22.22, Next.js 16.4.3, Chromium 12
 | Type-check (app + tests) | `npm run typecheck` | ✅ clean |
 | Database tests | `npm test` | ✅ **50 / 50** (≈ 6 s) |
 | HTTP tests (fresh DB + real server + mock providers) | `npm run build && npm run test:api` | ✅ **27 / 27** (≈ 60 s) |
-| Browser acceptance test (4 browser contexts) | `npm run test:e2e` | ✅ passed on 2 consecutive final runs after the last change (plus earlier passes) |
+| Browser acceptance test (4 browser contexts) | `npm run test:e2e` | ✅ passed on 3 consecutive runs after the last test fix, the last one on the final commit |
 
 ## The acceptance scenario (browser test)
 
