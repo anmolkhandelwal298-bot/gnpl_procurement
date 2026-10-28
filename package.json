@@ -2,20 +2,24 @@
   "name": "grainspan-procurement",
   "version": "1.0.0",
   "private": true,
-  "description": "Grainspan Nutrients — live procurement & reverse auction portal",
-  "engines": { "node": ">=20" },
+  "description": "Grainspan Nutrients \u2014 live procurement & reverse auction portal",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "db:start": "scripts/dev-db.sh start",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
     "db:reset": "tsx scripts/migrate.ts --reset && tsx scripts/seed.ts",
     "test": "vitest run",
     "test:db": "vitest run tests/db",
-    "test:e2e": "tsx tests/e2e/realtime-auction.e2e.ts"
+    "test:e2e": "tsx tests/e2e/realtime-auction.e2e.ts",
+    "test:api": "vitest run -c vitest.api.config.ts",
+    "test:all": "vitest run && vitest run -c vitest.api.config.ts && tsx tests/e2e/realtime-auction.e2e.ts"
   },
   "dependencies": {
     "exceljs": "4.4.0",

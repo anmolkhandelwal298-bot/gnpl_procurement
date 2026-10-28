@@ -22,7 +22,7 @@ export async function closeAll() {
 let counter = 0;
 const uniq = () => `${Date.now().toString(36)}${(counter++).toString(36)}`;
 
-export async function mkUser(role: "admin" | "procurement_manager" | "approver", name = role) {
+export async function mkUser(role: "admin" | "procurement_manager" | "approver", name: string = role) {
   const email = `${role}.${uniq()}@grainspan.test`;
   const [{ id }] = await ownerQ<{ id: string }>(
     "insert into profiles(email, full_name, role) values ($1,$2,$3) returning id", [email, `${name} ${uniq()}`, role]);
