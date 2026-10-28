@@ -4,6 +4,8 @@ import { processNotificationQueue } from "./notify/dispatcher";
 import { closeAuction, openAuction } from "./services/auction-lifecycle";
 import { enqueueAwardNotifications } from "./services/allocations";
 
+let lastHousekeeping = 0;
+
 /**
  * One idempotent pass over everything that depends on the passage of time. Safe to run concurrently from several instances
  * (every step takes row locks with SKIP LOCKED) and safe to run late: bid validity never depends on this having run
@@ -69,6 +71,15 @@ export async function tick() {
 
   // 8. deliver / retry notifications
   out.notifications = await processNotificationQueue();
+
+  // 9. housekeeping (hourly): purge long-dead sessions and reset tokens
+  if (Date.now() - lastHousekeeping > 3_600_000) {
+    lastHousekeeping = Date.now();
+    await withSystem(async (db) => {
+      await db.query("delete from sessions where expires_at < now() - interval '7 days' or revoked_at < now() - interval '7 days'");
+      await db.query("delete from password_resets where expires_at < now() - interval '7 days'");
+    });
+  }
   return out;
 }
 

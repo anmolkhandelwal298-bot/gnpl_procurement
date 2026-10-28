@@ -29,7 +29,7 @@ This is a working application (PostgreSQL + Next.js), not a mock-up. Two portals
 | Public HTTPS deployment | ❌ **not deployed** | No hosting/Supabase credentials were available. Instructions, Dockerfile and compose stack: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). The production entry point (`node .next/standalone/server.js`) was run and health-checked locally; the Docker image itself was not built (no Docker daemon in the build sandbox). |
 | Supabase Auth / Realtime / Storage | ❌ **not used** | See [Design decisions](#design-decisions). The schema is plain PostgreSQL (≥ 15) and is intended to run on Supabase's database, but it has **not been run on Supabase** — see the notes in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). |
 
-**Test totals (all run against real PostgreSQL 16 and the real built server):** 50 database tests · 26 HTTP tests · 1 browser acceptance test (≈ 60 assertions). Details and limits: [docs/TESTING.md](docs/TESTING.md).
+**Test totals (all run against real PostgreSQL 16 and the real built server):** 50 database tests · 27 HTTP tests · 1 browser acceptance test (≈ 60 assertions). Details and limits: [docs/TESTING.md](docs/TESTING.md).
 
 ---
 
@@ -64,7 +64,7 @@ Run the tests:
 ```bash
 npm run typecheck
 npm test                         # 50 database-level tests (creates a throw-away grainspan_test database)
-npm run build && npm run test:api    # 26 HTTP-level tests (boots a fresh DB + the real server + mock e-mail/WhatsApp providers)
+npm run build && npm run test:api    # 27 HTTP-level tests (boots a fresh DB + the real server + mock e-mail/WhatsApp providers)
 npm run test:e2e                 # browser acceptance test: admin + approver + 2 vendors in separate Chromium contexts (~90 s)
 ```
 
@@ -100,10 +100,10 @@ scripts/              migrate · seed (DEMO) · create-admin (production bootstr
 src/lib/              db (contexts) · auth/ · http (api wrapper) · validation (zod) · scheduler · realtime/hub · reports (CSV/XLSX)
 src/lib/services/     rfqs · offers (+documents) · auctions · auction-lifecycle · allocations · vendors · snapshot
 src/lib/notify/       templates · email (Resend) · whatsapp (Cloud API) · enqueue (outbox) · dispatcher (retry/backoff)
-src/app/api/          ~45 route handlers (auth, rfqs, auctions/bids, offers, vendors, audit, notifications, webhooks, cron, health)
+src/app/api/          50 route handlers (auth, rfqs, auctions/bids, offers, vendors, audit, notifications, webhooks, cron, health)
 src/app/admin/        dashboard · rfqs/[id] (overview · quotations · live auction · comparison · allocation · audit) · vendors · audit · notifications · users
 src/app/vendor/       RFQ list · RFQ page (quotation, documents, live bidding, award) · profile · register
-tests/                db/ (50) · api/ (26) · e2e/ (browser) · helpers/
+tests/                db/ (50) · api/ (27) · e2e/ (browser) · helpers/
 Dockerfile · docker-compose.yml · deploy/Caddyfile · docs/
 ```
 

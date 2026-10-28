@@ -120,6 +120,34 @@ describe("abuse protection & session controls", () => {
     expect((await new Client().post("/api/auth/login", { email: "newapprover@grainspan.demo", password: "Temp0rary-Pass1" })).status).toBe(401);   // old password is dead
   });
 
+  it("password reset by e-mail: link is single-use, expires, and kills existing sessions; unknown addresses get the same answer", async () => {
+    const victim = new Client(); await victim.login("bharat@vendor.demo");
+    expect((await victim.get("/api/vendor/rfqs")).status).toBe(200);
+    stack.mock.clear();
+    const anon = new Client();
+    const generic = await anon.post("/api/auth/forgot", { email: "ghost@nowhere.test" });
+    const real = await anon.post("/api/auth/forgot", { email: "bharat@vendor.demo" });
+    expect(generic.status).toBe(200); expect(real.json).toEqual(generic.json);                      // no account enumeration
+    await until(async () => stack.mock.of("resend").length >= 1, 8000);
+    expect(stack.mock.of("resend").length).toBe(1);                                                // only the real account got mail
+    const mail = stack.mock.of("resend")[0].body;
+    expect(mail.to[0]).toBe("bharat@vendor.demo");
+    const token = /reset-password\?token=([A-Za-z0-9_-]+)/.exec(mail.text)![1];
+    expect((await anon.post("/api/auth/reset", { token, password: "weak" })).status).toBe(400);
+    expect((await anon.post("/api/auth/reset", { token: "x".repeat(43), password: "Fresh-Passw0rd!" })).status).toBe(400);   // unknown token
+    expect((await anon.post("/api/auth/reset", { token, password: "Fresh-Passw0rd!" })).status).toBe(200);
+    expect((await anon.post("/api/auth/reset", { token, password: "Another-Passw0rd!" })).status).toBe(400);                  // single use
+    expect((await victim.get("/api/vendor/rfqs")).status).toBe(401);                                                          // old sessions revoked
+    expect((await new Client().post("/api/auth/login", { email: "bharat@vendor.demo", password: "Demo@12345" })).status).toBe(401);
+    expect((await new Client().post("/api/auth/login", { email: "bharat@vendor.demo", password: "Fresh-Passw0rd!" })).status).toBe(200);
+    // expired token
+    await anon.post("/api/auth/forgot", { email: "bharat@vendor.demo" });
+    await until(async () => stack.mock.of("resend").length >= 2, 8000);
+    const t2 = /token=([A-Za-z0-9_-]+)/.exec(stack.mock.of("resend")[1].body.text)![1];
+    await stack.sql("update password_resets set expires_at = now() - interval '1 minute' where used_at is null");
+    expect((await anon.post("/api/auth/reset", { token: t2, password: "Fresh-Passw0rd2!" })).status).toBe(400);
+  });
+
   it("rate-limits login attempts per IP", async () => {
     const c = new Client(); let limited = 0;
     for (let i = 0; i < 30; i++) { const r = await c.post("/api/auth/login", { email: `nobody${i}@x.test`, password: "whatever-123" }); if (r.status === 429) limited++; }

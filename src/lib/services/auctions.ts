@@ -1,6 +1,6 @@
 import { DomainError, q, q1, translateDbError, withUser, type Db } from "../db";
 import type { SessionUser } from "../auth/session";
-import { closeAuction, notifyAuction } from "./auction-lifecycle";
+import { closeAuction, lockAuction, notifyAuction } from "./auction-lifecycle";
 import { MIN_LEAD_MS } from "./rfqs";
 
 // ------------------------------------------------------------------ bidding (vendor)
@@ -80,7 +80,7 @@ export async function getComparisonMatrix(db: Db, rfqId: string) {
 export async function extendAuction(user: SessionUser, auctionId: string, minutes: number, reason: string) {
   try {
     return await withUser(user.id, async (db) => {
-      const a = await q1<any>(db, "select * from auctions where id=$1 for update", [auctionId]);
+      const a = await lockAuction(db, auctionId);
       if (!a) throw new DomainError("NOT_FOUND", "Auction not found.", 404);
       if (!["scheduled", "live"].includes(a.status)) throw new DomainError("INVALID_STATE", `A ${a.status} auction cannot be extended.`, 409);
       const r = await q1<any>(db, "update auctions set end_at = end_at + ($2 || ' minutes')::interval, closing_reminder_sent=false where id=$1 returning end_at", [auctionId, String(minutes)]);
@@ -105,7 +105,7 @@ export async function closeAuctionNow(user: SessionUser, auctionId: string, reas
 export async function rescheduleAuction(user: SessionUser, auctionId: string, startAt: Date, endAt: Date, reason: string) {
   try {
     return await withUser(user.id, async (db) => {
-      const a = await q1<any>(db, "select * from auctions where id=$1 for update", [auctionId]);
+      const a = await lockAuction(db, auctionId);
       if (!a) throw new DomainError("NOT_FOUND", "Auction not found.", 404);
       if (a.status !== "scheduled") throw new DomainError("INVALID_STATE", "Only a scheduled auction can be rescheduled.", 409);
       if (startAt.getTime() < Date.now() + MIN_LEAD_MS) throw new DomainError("VALIDATION", "The new start must be at least a minute from now.", 400);

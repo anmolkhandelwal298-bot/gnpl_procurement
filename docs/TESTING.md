@@ -6,7 +6,7 @@ Run on **2026-10-28**, PostgreSQL 16.15, Node 22.22, Next.js 16.4.3, Chromium 12
 |---|---|---|
 | Type-check (app + tests) | `npm run typecheck` | ✅ clean |
 | Database tests | `npm test` | ✅ **50 / 50** (≈ 6 s) |
-| HTTP tests (fresh DB + real server + mock providers) | `npm run build && npm run test:api` | ✅ **26 / 26** (≈ 60 s) |
+| HTTP tests (fresh DB + real server + mock providers) | `npm run build && npm run test:api` | ✅ **27 / 27** (≈ 60 s) |
 | Browser acceptance test (4 browser contexts) | `npm run test:e2e` | ✅ passed on 2 consecutive final runs after the last change (plus earlier passes) |
 
 ## The acceptance scenario (browser test)
@@ -34,10 +34,10 @@ Run as the **restricted `grainspan_app` role** with per-transaction user context
 * **`offers-rfq.test.ts` (12)** — strict vs review compliance, incomplete submissions, COA requirement, deadline lock, lock after scheduling with formal reopen + one-time per-vendor revision, staff cannot edit vendor data; RFQ state machine, specification freeze, invitation rules, draft invisibility, decline rules.
 * **`awards-audit.test.ts` (13)** — allocation validation (negative, over-offered, over-requirement with deferred check, unqualified, wrong role/state, under-award allowed); submit → approve → publish with frozen snapshot and exact totals; separation of duties even for admins; rejection requires a reason and opens a new cycle; empty allocation refused; vendors see award only after publication and only their own line; audit completeness, no secrets in audit rows, **tamper detection** (modified row, removed newest row, removed middle row) and forging attempts.
 
-## HTTP tests (`tests/api`, 26)
+## HTTP tests (`tests/api`, 27)
 
 * **`workflow.test.ts` (20)** — unauthenticated access, cookie flags and security headers, role boundaries on every portal, CSRF/Origin checks, generic login failure + lockout + audit, server-side session revocation, vendor registration → approval; then the whole procurement flow over HTTP: RFQ validation, publication with **real provider-API calls** (checked: recipients, auth header, idempotency key, template name/params, no other vendor's name in any message), vendor isolation, quotation validation (incomplete, non-compliant, spoofed/oversized files, filename sanitising), document isolation, qualification gating, specification lock, **real-time auction over SSE** (server-side opening; competitor's stream receives the rank change within ≈ 0.2 s; snapshot contains no competitor data; rejections; idempotent retry; 16 concurrent HTTP bids; late-bid extension; scheduler closes at the extended end; post-close bid rejected), matrix + CSV/Excel + demo watermark, allocation/approval/publication with permission and separation-of-duty checks, audit completeness and chain verification, notification retries with backoff, permanent-failure and re-queue flow, retry exhaustion, delivery webhooks (valid, forged, replayed, bounced).
-* **`scheduler-security.test.ts` (6)** — reminder windows (once per window, only unsubmitted vendors, not for windows already open at publication); deadline → qualification, auction open / closing reminder / close driven by the server clock alone; idle and absolute session expiry; immediate effect of deactivation and suspension; forced password change; login rate limiting.
+* **`scheduler-security.test.ts` (7)** — reminder windows (once per window, only unsubmitted vendors, not for windows already open at publication); deadline → qualification, auction open / closing reminder / close driven by the server clock alone; idle and absolute session expiry; immediate effect of deactivation and suspension; forced password change; password reset by e-mail link (single-use, expiry, session revocation, no enumeration); login rate limiting.
 
 ## What these tests do **not** prove
 

@@ -49,4 +49,5 @@ These are deliberate scope boundaries or things I could not do here. Address the
 8. **Documents live in PostgreSQL** — simple and consistent with backups, but not ideal for very large volumes; swap to object storage if needed.
 9. **Own authentication, not Supabase Auth** — no social login/SSO. Password reset by e-mail needs a configured e-mail provider (an administrator can always reset a password).
 10. **Single-region, single-database design**; no automatic failover is provided by the application.
-11. The audit hash chain detects tampering/deletion but cannot, on its own, prove *when* entries were written to an outside party; export and archive the audit log periodically (Audit → Excel) if you need external anchoring.
+11. **Account lockout can be abused for nuisance denial of service:** an attacker who knows an e-mail address can lock that account for 15 minutes by failing five logins (the lock self-expires; admins can reset immediately). A CAPTCHA or IP-reputation layer would mitigate this.
+12. The audit hash chain detects tampering/deletion but cannot, on its own, prove *when* entries were written to an outside party; export and archive the audit log periodically (Audit → Excel) if you need external anchoring.
