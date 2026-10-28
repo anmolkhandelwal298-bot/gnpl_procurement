@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api-client";
 import { fmtCountdown, useAuctionStream, useCountdown } from "@/lib/use-auction-stream";
-import { Alert, Badge, Button, Card, DemoBadge, Empty, Field, Input, ReasonDialog, StatusBadge, Table, Td, Th } from "@/components/ui";
+import { Alert, Badge, Button, Card, Empty, Field, Input, ReasonDialog, StatusBadge, Table, Td, Th } from "@/components/ui";
 import { fmtDateTime, fmtDateTimeSec, inr, mt, pct } from "@/lib/format";
 
 const EVENT_LABEL: Record<string, string> = {
@@ -40,7 +40,7 @@ export function AdminAuctionMonitor({ rfqId, initial, canControl, role }: { rfqI
         </div>
         <div className="text-right">
           <div className="text-xs uppercase tracking-wider text-navy-300">{a.status === "scheduled" ? "Starts in" : a.status === "live" ? "Time remaining" : statusLabel}</div>
-          <div className="text-4xl font-bold tabular sm:text-5xl">{target ? fmtCountdown(remaining) : a.status === "closed" ? "CLOSED" : a.status.toUpperCase()}</div>
+          <div data-testid="admin-countdown" className="text-4xl font-bold tabular sm:text-5xl">{target ? fmtCountdown(remaining) : a.status === "closed" ? "CLOSED" : a.status.toUpperCase()}</div>
         </div>
       </div>
 
@@ -55,7 +55,7 @@ export function AdminAuctionMonitor({ rfqId, initial, canControl, role }: { rfqI
       <Card title="Live ranking — confidential, procurement only" pad={false}>
         <Table><thead><tr><Th>Rank</Th><Th>Vendor</Th><Th className="text-right">Latest FOR (₹/MT)</Th><Th className="text-right">Initial FOR</Th><Th className="text-right">Reduction</Th><Th className="text-right">Bids</Th><Th>Price set at</Th><Th className="text-right">Qty offered</Th></tr></thead><tbody>
           {snap.standings.map((s: any) => (
-            <tr key={s.vendor_id} className={flash[s.vendor_id] ? "bg-teal-50 pop" : ""}>
+            <tr key={s.vendor_id} data-testid={`standing-${s.vendor_code}`} data-rank={s.rank} data-price={s.current_price} className={flash[s.vendor_id] ? "bg-teal-50 pop" : ""}>
               <Td><span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold ${s.rank === 1 ? "bg-teal-600 text-white" : "bg-navy-100 text-navy-700"}`}>{s.rank}</span></Td>
               <Td><span className="font-medium">{s.legal_name}</span><div className="text-xs text-navy-500">{s.vendor_code}</div></Td>
               <Td className="text-right text-base font-bold tabular">{inr(s.current_price)}</Td>
@@ -86,7 +86,6 @@ export function AdminAuctionMonitor({ rfqId, initial, canControl, role }: { rfqI
         <Field label="Extend by (minutes)"><Input type="number" min={1} max={240} value={minutes} onChange={(e) => setMinutes(e.target.value)} /></Field><div className="h-3" /></ReasonDialog>
       <ReasonDialog open={dlg === "close"} onClose={() => setDlg(null)} title="Close the auction now" danger confirmLabel="Close auction"
         onConfirm={async (reason) => { await apiFetch(`/api/auctions/${a.id}/close`, { body: { reason } }); setMsg("Auction closed."); }}><p className="mb-3 text-sm text-navy-600">No further bids will be accepted. This cannot be undone.</p></ReasonDialog>
-      {role === "admin" && null}
     </div>
   );
 }
@@ -104,4 +103,3 @@ function detail(e: any): string {
     default: return "";
   }
 }
-export { DemoBadge };

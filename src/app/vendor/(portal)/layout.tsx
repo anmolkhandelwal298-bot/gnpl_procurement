@@ -14,9 +14,9 @@ export default async function VendorLayout({ children }: { children: React.React
       <header className="bg-navy-900 text-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
           <Link href="/vendor"><Logo light /></Link>
-          <nav className="flex items-center gap-1 text-sm">
-            <Link href="/vendor" className="rounded-lg px-3 py-1.5 font-medium hover:bg-white/10">My RFQs</Link>
-            <Link href="/vendor/profile" className="rounded-lg px-3 py-1.5 font-medium hover:bg-white/10">Profile</Link>
+          <nav className="flex items-center gap-0.5 whitespace-nowrap text-sm">
+            <Link href="/vendor" className="rounded-lg px-2.5 py-1.5 font-medium hover:bg-white/10">My RFQs</Link>
+            <Link href="/vendor/profile" className="rounded-lg px-2.5 py-1.5 font-medium hover:bg-white/10">Profile</Link>
             <LogoutButton />
           </nav>
         </div>

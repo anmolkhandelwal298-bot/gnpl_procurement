@@ -6,6 +6,7 @@ import { getRfq } from "@/lib/services/rfqs";
 import { DemoBadge, StatusBadge } from "@/components/ui";
 import { mt } from "@/lib/format";
 import { RfqTabs } from "./tabs";
+import { RfqStatusSync } from "@/lib/use-auction-stream";
 
 export default async function RfqLayout({ children, params }: { children: React.ReactNode; params: Promise<{ id: string }> }) {
   const user = await requireStaff();
@@ -22,6 +23,7 @@ export default async function RfqLayout({ children, params }: { children: React.
         </div>
         <p className="text-sm text-navy-600">{rfq.material_name}{rfq.grade ? ` · ${rfq.grade}` : ""} · {mt(rfq.required_qty_mt)} MT · {rfq.delivery_basis} {rfq.delivery_location}</p>
       </div>
+      <RfqStatusSync rfqId={id} initialStatus={rfq.status} />
       <RfqTabs id={id} />
       {children}
     </div>

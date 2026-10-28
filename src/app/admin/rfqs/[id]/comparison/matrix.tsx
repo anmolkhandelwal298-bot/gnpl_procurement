@@ -48,13 +48,13 @@ export function Matrix({ rfqId, initial }: { rfqId: string; initial: Row[] }) {
         <Input placeholder="Search vendor, ID, origin" value={text} onChange={(e) => setText(e.target.value)} className="!w-64" />
         <Select value={qual} onChange={(e) => setQual(e.target.value)} className="!w-48"><option value="">All qualification</option><option value="qualified">Qualified</option><option value="disqualified">Disqualified</option><option value="pending">Pending</option><option value="none">No quotation</option></Select>
         <Select value={part} onChange={(e) => setPart(e.target.value)} className="!w-56"><option value="">All participation</option>{participations.map((p) => <option key={p}>{p}</option>)}</Select>
-        <span className={`text-xs ${connected ? "text-emerald-700" : "text-amber-700"}`}>● {connected ? "live" : "offline"}</span>
+        <span className={`text-xs ${connected ? "text-emerald-700" : "text-amber-700"}`}>● {connected ? "live — updates automatically" : "connecting…"}</span>
         <div className="ml-auto flex gap-2">
           <a className="rounded-lg border border-navy-200 bg-white px-3 py-2 text-sm font-semibold text-navy-800 hover:bg-navy-50" href={`/api/rfqs/${rfqId}/export?type=matrix&format=csv`}>⬇ CSV</a>
           <a className="rounded-lg bg-teal-600 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-700" href={`/api/rfqs/${rfqId}/export?type=matrix&format=xlsx`}>⬇ Excel</a>
         </div>
       </div>
-      <Card pad={false}>
+      <Card pad={false} className="[&_td]:px-2 [&_td]:text-[13px] [&_th]:px-2">
         <Table><thead><tr>{COLS.map(th)}</tr></thead><tbody>
           {view.map((r) => (
             <tr key={r.vendor_id} className="hover:bg-navy-50/50">

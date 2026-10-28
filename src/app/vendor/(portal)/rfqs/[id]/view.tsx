@@ -7,7 +7,7 @@ import { Alert, Badge, Button, Card, DemoBadge, Field, Input, KV, StatusBadge, T
 import { fmtDateTime, fmtDateTimeSec, inr, mt } from "@/lib/format";
 
 export function VendorRfqView({ rfqId, data, award, initialSnap }: { rfqId: string; data: any; award: any; initialSnap: any }) {
-  const { snap, connected, now } = useAuctionStream<any>(rfqId, initialSnap);
+  const { snap, connected, now, refresh } = useAuctionStream<any>(rfqId, initialSnap);
   const router = useRouter();
   const rfq = data.rfq; const status = snap?.rfq?.status ?? rfq.status;
   const auction = snap?.auction;
@@ -22,8 +22,9 @@ export function VendorRfqView({ rfqId, data, award, initialSnap }: { rfqId: stri
         <p className="text-sm text-navy-600">{rfq.material_name}{rfq.grade ? ` · ${rfq.grade}` : ""} · {mt(rfq.required_qty_mt)} MT required</p>
       </div>
       {data.invitation?.status === "declined" && <Alert tone="amber">You declined this invitation.</Alert>}
+      {data.invitation && data.invitation.status !== "declined" && !data.offer?.status?.match(/submitted/) && ["published", "quotation_open"].includes(status) && <DeclineInvitation rfqId={rfqId} />}
       {award?.published && <AwardCard award={award} />}
-      {showAuction && <AuctionPanel rfqId={rfqId} auction={auction} connected={connected} now={now} />}
+      {showAuction && <AuctionPanel rfqId={rfqId} auction={auction} connected={connected} now={now} refresh={refresh} />}
       {status === "cancelled" && <Alert>This RFQ has been cancelled by Grainspan.</Alert>}
       {!showAuction && data.offer?.qualification_status === "qualified" && ["qualification", "scheduled"].includes(status) && <Alert tone="green">Your quotation is <b>technically qualified</b>. The live auction is scheduled for {fmtDateTime(rfq.auction_start_at)}.</Alert>}
       {data.offer?.qualification_status === "disqualified" && <Alert>Your quotation was not technically qualified{data.offer.qualification_remarks ? `: ${data.offer.qualification_remarks}` : "."} You will not take part in the auction.</Alert>}
@@ -70,12 +71,19 @@ function AwardCard({ award }: { award: any }) {
 }
 
 // ---------------------------------------------------------------- live auction
-function AuctionPanel({ rfqId, auction, connected, now }: { rfqId: string; auction: any; connected: boolean; now: () => number }) {
+function AuctionPanel({ auction, connected, now, refresh }: { rfqId: string; auction: any; connected: boolean; now: () => number; refresh: () => Promise<void> }) {
   const nowMs = now();
-  const started = Date.parse(auction.start_at) <= nowMs;
+  // What is "live" is decided by the SERVER's status in the latest snapshot (rank and price arrive with it); the local clock only drives the countdown.
   const running = auction.status === "live" && Date.parse(auction.end_at) > nowMs;
-  const target = auction.status === "scheduled" || !started ? auction.start_at : auction.status === "live" ? auction.end_at : null;
+  const target = auction.status === "scheduled" ? auction.start_at : auction.status === "live" ? auction.end_at : null;
   const remaining = useCountdown(target, now);
+  const awaiting = auction.status === "scheduled" && remaining === 0;               // countdown hit zero, server snapshot not yet 'live'
+  const ended = auction.status === "live" && remaining === 0;
+  useEffect(() => {                                                                  // pull immediately instead of waiting for the next push
+    if (!awaiting && !ended) return;
+    void refresh(); const t = setInterval(() => void refresh(), 700);
+    return () => clearInterval(t);
+  }, [awaiting, ended, refresh]);
   const [amount, setAmount] = useState(""); const [busy, setBusy] = useState(false); const [result, setResult] = useState<{ tone: "green" | "red"; text: string } | null>(null);
   const keyRef = useRef<string>(crypto.randomUUID());
   const [bump, setBump] = useState(false); const prevRank = useRef<number | null>(auction.rank); const prevPrice = useRef<string>(auction.current_price);
@@ -103,7 +111,7 @@ function AuctionPanel({ rfqId, auction, connected, now }: { rfqId: string; aucti
     } finally { setBusy(false); }
   }
 
-  const label = auction.status === "closed" || (auction.status === "live" && !running) ? "closed" : started ? "live" : "scheduled";
+  const label = auction.status === "closed" || (auction.status === "live" && !running) ? "closed" : auction.status === "live" ? "live" : "scheduled";
   return (
     <Card pad={false} className="overflow-hidden border-2 border-navy-800">
       <div className="bg-navy-900 px-5 py-3 text-white">
@@ -111,19 +119,19 @@ function AuctionPanel({ rfqId, auction, connected, now }: { rfqId: string; aucti
           <div className="flex items-center gap-2"><StatusBadge status={label === "live" ? "live" : label === "closed" ? "closed" : "scheduled"} />
             <span className={`flex items-center gap-1.5 text-xs ${connected ? "text-emerald-300" : "text-amber-300"}`}><span className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-400" : "bg-amber-400"}`} />{connected ? "Live connection" : "Reconnecting…"}</span></div>
           <div className="text-right"><div className="text-[10px] uppercase tracking-widest text-navy-300">{label === "scheduled" ? "Auction starts in" : label === "live" ? "Time remaining" : "Auction"}</div>
-            <div className="text-3xl font-bold tabular sm:text-4xl" aria-live="off">{target && label !== "closed" ? fmtCountdown(remaining) : "CLOSED"}</div></div>
+            <div data-testid="countdown" className="text-3xl font-bold tabular sm:text-4xl" aria-live="off">{label === "closed" ? "CLOSED" : awaiting ? "Starting…" : target ? fmtCountdown(remaining) : "—"}</div></div>
         </div>
       </div>
       <div className="grid gap-px bg-navy-100 sm:grid-cols-2">
         <div className="bg-white p-5"><div className="text-xs font-semibold uppercase tracking-wider text-navy-500">Your current FOR price</div>
-          <div className={`mt-1 text-4xl font-extrabold tabular text-navy-900 sm:text-5xl ${bump ? "pop" : ""}`}>{inr(auction.current_price)}<span className="text-base font-medium text-navy-500"> /MT</span></div>
+          <div data-testid="my-price" className={`mt-1 text-4xl font-extrabold tabular text-navy-900 sm:text-5xl ${bump ? "pop" : ""}`}>{inr(auction.current_price)}<span className="text-base font-medium text-navy-500"> /MT</span></div>
           <div className="mt-1 text-xs text-navy-500">Initial quote {inr(auction.initial_price)} · {auction.bid_count} bid{auction.bid_count === 1 ? "" : "s"} placed</div></div>
         <div className="bg-white p-5"><div className="text-xs font-semibold uppercase tracking-wider text-navy-500">Your rank</div>
-          <div className={`mt-1 flex items-baseline gap-2 ${bump ? "pop" : ""}`}><span className={`text-5xl font-extrabold tabular sm:text-6xl ${auction.rank === 1 ? "text-teal-600" : "text-navy-900"}`}>{auction.rank ?? "—"}</span>
+          <div className={`mt-1 flex items-baseline gap-2 ${bump ? "pop" : ""}`}><span data-testid="my-rank" className={`text-5xl font-extrabold tabular sm:text-6xl ${auction.rank === 1 ? "text-teal-600" : "text-navy-900"}`}>{auction.rank ?? "—"}</span>
             {auction.rank === 1 && <Badge tone="teal">Lowest price</Badge>}</div>
           <div className="mt-1 text-xs text-navy-500">Rank 1 = lowest eligible FOR price. Ties are ranked by who reached the price first.</div></div>
       </div>
-      <div className="p-5">
+      <div className="p-5" data-testid="bid-area">
         {label === "live" ? (
           <form onSubmit={submit} className="space-y-3">
             <Field label="Your new FOR price (₹ per MT)" hint={maxNext !== null ? `Maximum allowed: ${inr(maxNext)} — each bid must be at least ${inr(auction.min_decrement)} below your current price.` : undefined}>
@@ -235,5 +243,17 @@ function OfferForm({ rfqId, data }: { rfqId: string; data: any }) {
       {offer?.submitted_at && <p className="mt-3 text-xs text-navy-500">Last submitted {fmtDateTime(offer.submitted_at)} · version {offer.version}</p>}
       {offer?.qualification_status && <p className="mt-1 text-xs text-navy-500">Technical review: <b>{offer.qualification_status}</b></p>}
     </Card>
+  );
+}
+
+function DeclineInvitation({ rfqId }: { rfqId: string }) {
+  const router = useRouter();
+  return (
+    <p className="text-right text-xs text-navy-500">Not interested in this RFQ?{" "}
+      <button className="font-semibold text-red-700 hover:underline" onClick={async () => {
+        const reason = prompt("Optional: tell Grainspan why you are declining this invitation.");
+        if (reason === null) return;
+        try { await apiFetch(`/api/vendor/rfqs/${rfqId}/decline`, { body: { reason } }); router.refresh(); } catch (e: any) { alert(e.message); }
+      }}>Decline invitation</button></p>
   );
 }

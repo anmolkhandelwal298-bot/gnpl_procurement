@@ -84,7 +84,7 @@ describe("authentication & authorisation (HTTP)", () => {
     expect(audit[0].c).toBeGreaterThanOrEqual(5);
   });
 
-  it("invalidates the session on logout and supports password change", async () => {
+  it("invalidates the session server-side on logout (a stolen cookie is dead)", async () => {
     const c = new Client(); await c.login("approver@grainspan.demo");
     const old = c.cookie;
     expect((await c.get("/api/audit")).status).toBe(200);

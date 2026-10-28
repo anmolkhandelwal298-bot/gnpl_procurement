@@ -1,0 +1,12 @@
+# Automatic HTTPS (Let's Encrypt) + HTTP/2, which also lifts the browser's 6-connection limit that matters for live (SSE) pages.
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000 {
+		# SSE must not be buffered
+		flush_interval -1
+		header_up X-Forwarded-For {remote_host}
+	}
+	header {
+		-Server
+	}
+}

@@ -1,0 +1,54 @@
+# Self-hosted stack: PostgreSQL + migrations + app + Caddy (automatic HTTPS).
+#   cp .env.example .env   # fill in secrets (see docs/DEPLOYMENT.md)
+#   docker compose up -d --build
+# For managed Postgres (e.g. Supabase) delete the `db` service and point DATABASE_URL / MIGRATION_DATABASE_URL at it.
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: grainspan
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U postgres -d grainspan"], interval: 5s, timeout: 3s, retries: 20 }
+
+  migrate:
+    build: { context: ., target: migrate }
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      MIGRATION_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/grainspan
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD}
+    restart: "no"
+
+  app:
+    build: { context: ., args: { NEXT_PUBLIC_APP_TIMEZONE: "${APP_TIMEZONE:-Asia/Kolkata}" } }
+    restart: unless-stopped
+    depends_on: { migrate: { condition: service_completed_successfully } }
+    environment:
+      DATABASE_URL: postgres://grainspan_app:${APP_DB_PASSWORD}@db:5432/grainspan
+      APP_URL: ${APP_URL:?set APP_URL, e.g. https://procurement.example.com}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Kolkata}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+      CRON_SECRET: ${CRON_SECRET:-}
+      COOKIE_SECURE: "true"
+      RUN_SCHEDULER: "true"
+      SHOW_DEMO_BANNER: "false"
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      RESEND_WEBHOOK_SECRET: ${RESEND_WEBHOOK_SECRET:-}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+    expose: ["3000"]
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [app]
+    ports: ["80:80", "443:443"]
+    environment: { DOMAIN: "${DOMAIN:?set DOMAIN, e.g. procurement.example.com}" }
+    volumes: [./deploy/Caddyfile:/etc/caddy/Caddyfile:ro, caddy_data:/data, caddy_config:/config]
+
+volumes: { pgdata: {}, caddy_data: {}, caddy_config: {} }

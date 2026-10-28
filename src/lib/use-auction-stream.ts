@@ -1,36 +1,87 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
- * Subscribes to /api/rfqs/:id/stream (SSE). The server pushes a complete, role-filtered snapshot after every committed change.
- * Falls back to polling /snapshot if the stream is down for more than a few seconds. `now()` is a server-synchronised clock used
- * ONLY for display (countdowns) — the server alone decides whether a bid is on time.
+ * One EventSource per RFQ per browser tab, shared by every component that needs it (browsers allow only ~6 HTTP/1.1 connections per host).
+ * The server pushes a complete, role-filtered snapshot after every committed change; if the stream is down for a few seconds we fall back
+ * to polling /snapshot. The synchronised clock (`now()`) is used ONLY for display — the server alone decides whether a bid is on time.
  */
-export function useAuctionStream<T extends { serverTime: string | Date }>(rfqId: string, initial: T | null) {
-  const [snap, setSnap] = useState<T | null>(initial);
-  const [connected, setConnected] = useState(false);
-  const [version, setVersion] = useState(0);
-  const offset = useRef(initial ? Date.parse(String(initial.serverTime)) - Date.now() : 0);
-  const now = useCallback(() => Date.now() + offset.current, []);
+type Snap = { serverTime: string | Date; [k: string]: any };
+interface Conn {
+  refs: number; es: EventSource | null; last: Snap | null; connected: boolean; offset: number;
+  subs: Set<() => void>; poll: ReturnType<typeof setInterval> | null; down: ReturnType<typeof setTimeout> | null; closeTimer: ReturnType<typeof setTimeout> | null;
+}
+const conns = new Map<string, Conn>();
+
+function emit(c: Conn) { c.subs.forEach((f) => f()); }
+function apply(c: Conn, s: Snap) { c.offset = Date.parse(String(s.serverTime)) - Date.now(); c.last = s; emit(c); }
+
+function open(rfqId: string): Conn {
+  const c: Conn = { refs: 0, es: null, last: null, connected: false, offset: 0, subs: new Set(), poll: null, down: null, closeTimer: null };
+  const startPolling = () => {
+    if (c.poll) return;
+    c.poll = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/rfqs/${rfqId}/snapshot`, { cache: "no-store" });
+        if (r.ok) apply(c, await r.json()); else if (r.status === 401) window.location.href = "/login?expired=1";
+      } catch { /* retry */ }
+    }, 3000);
+  };
+  const es = new EventSource(`/api/rfqs/${rfqId}/stream`);
+  c.es = es;
+  es.addEventListener("snapshot", (e) => {
+    c.connected = true;
+    if (c.poll) { clearInterval(c.poll); c.poll = null; }
+    if (c.down) { clearTimeout(c.down); c.down = null; }
+    apply(c, JSON.parse((e as MessageEvent).data));
+  });
+  es.addEventListener("auth", () => { window.location.href = "/login?expired=1"; });
+  es.onerror = () => { c.connected = false; emit(c); if (!c.down) c.down = setTimeout(startPolling, 6000); };
+  return c;
+}
+
+export function useAuctionStream<T extends Snap>(rfqId: string, initial: T | null) {
+  const [, force] = useState(0);
+  const connRef = useRef<Conn | null>(null);
+  const initialRef = useRef(initial);
 
   useEffect(() => {
-    let es: EventSource | null = null, poll: ReturnType<typeof setInterval> | null = null, down: ReturnType<typeof setTimeout> | null = null, stopped = false;
-    const apply = (s: T) => { offset.current = Date.parse(String(s.serverTime)) - Date.now(); setSnap(s); setVersion((v) => v + 1); };
-    const startPolling = () => {
-      if (poll || stopped) return;
-      poll = setInterval(async () => { try { const r = await fetch(`/api/rfqs/${rfqId}/snapshot`, { cache: "no-store" }); if (r.ok) apply(await r.json()); else if (r.status === 401) window.location.href = "/login?expired=1"; } catch { /* retry */ } }, 3000);
+    let c = conns.get(rfqId);
+    if (!c) { c = open(rfqId); conns.set(rfqId, c); }
+    if (c.closeTimer) { clearTimeout(c.closeTimer); c.closeTimer = null; }
+    c.refs++;
+    connRef.current = c;
+    const sub = () => force((n) => n + 1);
+    c.subs.add(sub);
+    if (!c.last && initialRef.current) { c.offset = Date.parse(String(initialRef.current.serverTime)) - Date.now(); }
+    sub();
+    return () => {
+      c!.subs.delete(sub); c!.refs--;
+      if (c!.refs <= 0) {                                                  // keep the connection a moment so route changes don't reconnect
+        c!.closeTimer = setTimeout(() => { if (c!.refs > 0) return; c!.es?.close(); if (c!.poll) clearInterval(c!.poll); if (c!.down) clearTimeout(c!.down); conns.delete(rfqId); }, 3000);
+      }
     };
-    const connect = () => {
-      es = new EventSource(`/api/rfqs/${rfqId}/stream`);
-      es.addEventListener("snapshot", (e) => { setConnected(true); if (poll) { clearInterval(poll); poll = null; } if (down) { clearTimeout(down); down = null; } apply(JSON.parse((e as MessageEvent).data)); });
-      es.addEventListener("auth", () => { window.location.href = "/login?expired=1"; });
-      es.onerror = () => { setConnected(false); if (!down) down = setTimeout(startPolling, 6000); };
-    };
-    connect();
-    return () => { stopped = true; es?.close(); if (poll) clearInterval(poll); if (down) clearTimeout(down); };
   }, [rfqId]);
 
-  return { snap, connected, now, version };
+  const c = connRef.current;
+  const snap = (c?.last as T | null) ?? initialRef.current;
+  const now = useCallback(() => Date.now() + (connRef.current?.offset ?? 0), []);
+  /** Pull a fresh snapshot right now (used at countdown zero so the UI never waits for the next push). */
+  const refresh = useCallback(async () => {
+    try { const r = await fetch(`/api/rfqs/${rfqId}/snapshot`, { cache: "no-store" }); if (r.ok && connRef.current) apply(connRef.current, await r.json()); } catch { /* the stream will catch up */ }
+  }, [rfqId]);
+  return { snap, connected: !!c?.connected, now, version: c?.last ? Date.parse(String(c.last.serverTime)) : 0, refresh };
+}
+
+/** Keeps server-rendered parts of an RFQ page (header badge, action buttons) in step with stage changes pushed by the server. */
+export function RfqStatusSync({ rfqId, initialStatus }: { rfqId: string; initialStatus: string }) {
+  const router = useRouter();
+  const { snap } = useAuctionStream<any>(rfqId, null);
+  const last = useRef(initialStatus);
+  const status: string | undefined = snap?.rfq?.status;
+  useEffect(() => { if (status && status !== last.current) { last.current = status; router.refresh(); } }, [status, router]);
+  return null;
 }
 
 export function useCountdown(targetIso: string | Date | null | undefined, now: () => number) {
