@@ -19,7 +19,9 @@
     "test:db": "vitest run tests/db",
     "test:e2e": "tsx tests/e2e/realtime-auction.e2e.ts",
     "test:api": "vitest run -c vitest.api.config.ts",
-    "test:all": "vitest run && vitest run -c vitest.api.config.ts && tsx tests/e2e/realtime-auction.e2e.ts"
+    "test:all": "vitest run && vitest run -c vitest.api.config.ts && tsx tests/e2e/realtime-auction.e2e.ts",
+    "boot": "tsx scripts/boot.ts",
+    "start:hosted": "tsx scripts/boot.ts"
   },
   "dependencies": {
     "exceljs": "4.4.0",

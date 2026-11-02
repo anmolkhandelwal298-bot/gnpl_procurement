@@ -1,0 +1,47 @@
+# Render Blueprint — one-click prototype deployment (web service + PostgreSQL).
+# Render dashboard → New → Blueprint → pick this repository/branch → fill the two "sync: false" values → Apply.
+# Full walkthrough: docs/DEPLOY-MVP.md
+#
+# PROTOTYPE SETTINGS: free plans sleep after ~15 min idle (the auction scheduler pauses while asleep) and the free database expires
+# after 30 days. For real use switch both plans to a paid tier (e.g. "starter") and set SEED_DEMO / DEMO_LOGIN_HINT / SHOW_DEMO_BANNER to "false".
+databases:
+  - name: grainspan-db
+    databaseName: grainspan
+    plan: free
+    ipAllowList: []            # reachable only from services inside your Render account
+
+services:
+  - type: web
+    name: grainspan-procurement
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: MIGRATION_DATABASE_URL        # the app migrates itself on every start and then runs as the restricted role
+        fromDatabase: { name: grainspan-db, property: connectionString }
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      - key: BOOTSTRAP_ADMIN_EMAIL         # your real admin login (created once, if no admin exists)
+        sync: false
+      - key: BOOTSTRAP_ADMIN_PASSWORD      # temporary password: at least 10 characters with a letter and a number; you must change it at first sign-in
+        sync: false
+      - key: BOOTSTRAP_ADMIN_NAME
+        value: Administrator
+      - key: SEED_DEMO                     # prototype: load DEMO vendors / users / one DEMO RFQ so you can try everything immediately
+        value: "true"
+      - key: DEMO_LOGIN_HINT               # prototype: show the demo accounts on the sign-in page
+        value: "true"
+      - key: SHOW_DEMO_BANNER
+        value: "true"
+      - key: APP_TIMEZONE
+        value: Asia/Kolkata
+      - key: RESEND_API_KEY                # optional — e-mail
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN         # optional — WhatsApp
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false

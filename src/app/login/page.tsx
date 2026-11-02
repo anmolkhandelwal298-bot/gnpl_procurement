@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { Logo } from "@/components/brand";
 import { LoginForm } from "./login-form";
+import { DEMO_ACCOUNTS } from "@/lib/demo-accounts";
 
 export const metadata = { title: "Sign in" };
 
@@ -24,7 +25,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <div className="mb-8 lg:hidden"><Logo /></div>
           <h2 className="text-2xl font-bold text-navy-900">Sign in</h2>
           <p className="mb-6 mt-1 text-sm text-navy-500">Grainspan staff and registered suppliers.</p>
-          <LoginForm expired={sp.expired === "1"} />
+          <LoginForm expired={sp.expired === "1"} demo={process.env.DEMO_LOGIN_HINT === "true" ? { accounts: DEMO_ACCOUNTS, password: process.env.SEED_PASSWORD || "Demo@12345" } : undefined} />
         </div>
       </section>
     </main>

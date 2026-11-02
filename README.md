@@ -33,6 +33,10 @@ This is a working application (PostgreSQL + Next.js), not a mock-up. Two portals
 
 ---
 
+## Put it online (no laptop needed)
+
+Follow **[docs/DEPLOY-MVP.md](docs/DEPLOY-MVP.md)** — a click-through Render deployment (`render.yaml` blueprint). The container sets up its own database on start (`scripts/boot.ts`), creates your admin from environment variables, and can load DEMO data for a prototype. Not yet run on Render itself.
+
 ## Quick start (local)
 
 Requirements: Node 20+ (22 tested), PostgreSQL 15+ (a helper starts a local one without Docker), Chromium only for the browser test.
